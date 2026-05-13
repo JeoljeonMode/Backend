@@ -10,8 +10,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.capstone.domain.BedConfig;
+import com.example.capstone.domain.Patient;
 import com.example.capstone.domain.User;
 import com.example.capstone.repository.BedConfigStore;
+import com.example.capstone.repository.PatientStore;
 import com.example.capstone.repository.UserStore;
 
 @Service
@@ -25,11 +27,13 @@ public class DataSeeder implements ApplicationRunner {
 
     private final UserStore userStore;
     private final BedConfigStore bedConfigStore;
+    private final PatientStore patientStore;
     private final PasswordEncoder passwordEncoder;
 
-    public DataSeeder(UserStore userStore, BedConfigStore bedConfigStore, PasswordEncoder passwordEncoder) {
+    public DataSeeder(UserStore userStore, BedConfigStore bedConfigStore, PatientStore patientStore, PasswordEncoder passwordEncoder) {
         this.userStore = userStore;
         this.bedConfigStore = bedConfigStore;
+        this.patientStore = patientStore;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -37,6 +41,7 @@ public class DataSeeder implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         seedAdmin();
         seedBedConfigs();
+        seedPatients();
     }
 
     private void seedAdmin() {
@@ -69,5 +74,30 @@ public class DataSeeder implements ApplicationRunner {
         bedConfigStore.save(bed2);
 
         log.info("[시드] 병상 설정 BED-01, BED-02 생성 완료");
+    }
+
+    private void seedPatients() {
+        if (!patientStore.findAll().isEmpty()) {
+            return;
+        }
+        Patient p1 = new Patient();
+        p1.setPatientNumber("P-001");
+        p1.setName("김인하");
+        p1.setAge(78);
+        p1.setGender("FEMALE");
+        p1.setBedId("BED-01");
+        p1.setDiagnosis("치매, 고혈압");
+        patientStore.save(p1);
+
+        Patient p2 = new Patient();
+        p2.setPatientNumber("P-002");
+        p2.setName("박하늘");
+        p2.setAge(82);
+        p2.setGender("MALE");
+        p2.setBedId("BED-02");
+        p2.setDiagnosis("파킨슨병");
+        patientStore.save(p2);
+
+        log.info("[시드] 샘플 환자 2명 생성 완료");
     }
 }

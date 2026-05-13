@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: capstone-fall-monitoring
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+
+server:
+  port: ${PORT:8082}
+
+logging:
+  level:
+    com.example.capstone: INFO
+    org.springframework.web.servlet.DispatcherServlet: WARN
+    org.mongodb.driver.cluster: WARN

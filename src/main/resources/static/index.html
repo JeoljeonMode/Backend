@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>요양원 침대 낙상 위험 모니터링</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100">
+  <main class="min-h-screen p-4 md:p-6">
+    <section class="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+      <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h1 class="text-xl font-semibold">침대 낙상 위험 모니터링</h1>
+          <div class="flex items-center gap-2">
+            <button id="demoEvent" class="rounded bg-amber-300 px-3 py-1.5 text-xs font-bold text-slate-950">데모 이벤트</button>
+            <span id="liveBadge" class="rounded bg-emerald-500 px-2 py-1 text-xs font-bold text-emerald-950">LIVE</span>
+          </div>
+        </div>
+        <div class="relative aspect-video overflow-hidden rounded bg-slate-800">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,#475569_0,#1e293b_38%,#0f172a_100%)]"></div>
+          <div id="roiBox" class="absolute rounded border-4 border-cyan-300/80"></div>
+          <div id="patientBox" class="absolute h-[28%] w-[18%] rounded border-4 border-amber-300 bg-amber-300/20"></div>
+          <div class="absolute bottom-3 left-3 rounded bg-slate-950/80 px-3 py-2 text-sm">ROI: BED-01 / CAM-01</div>
+          <div id="guardrailOverlay" class="absolute right-[20%] top-[15%] h-[68%] w-2 rounded bg-emerald-400"></div>
+        </div>
+      </div>
+
+      <aside class="grid gap-4">
+        <div id="riskCard" class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="text-sm text-slate-400">현재 위험 단계</div>
+          <div id="riskLabel" class="mt-2 text-4xl font-bold">-</div>
+          <div id="riskScore" class="mt-2 text-lg text-slate-300">점수 -</div>
+        </div>
+        <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 text-sm text-slate-400">상태</div>
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <dt class="text-slate-400">환자</dt><dd id="patientName" class="text-right">-</dd>
+            <dt class="text-slate-400">위치</dt><dd id="position" class="text-right">-</dd>
+            <dt class="text-slate-400">자세</dt><dd id="posture" class="text-right">-</dd>
+            <dt class="text-slate-400">가드레일</dt><dd id="guardrail" class="text-right">-</dd>
+            <dt class="text-slate-400">보호 인력</dt><dd id="caregiver" class="text-right">-</dd>
+          </dl>
+        </div>
+        <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 text-sm text-slate-400">최근 100건 요약</div>
+          <div class="grid grid-cols-3 gap-2 text-center text-sm">
+            <div class="rounded bg-emerald-950 p-3"><div id="normalCount" class="text-2xl font-bold">0</div><div>정상</div></div>
+            <div class="rounded bg-amber-950 p-3"><div id="cautionCount" class="text-2xl font-bold">0</div><div>주의</div></div>
+            <div class="rounded bg-rose-950 p-3"><div id="dangerCount" class="text-2xl font-bold">0</div><div>위험</div></div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="mt-4 grid gap-4 lg:grid-cols-2">
+      <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h2 class="mb-3 font-semibold">위험 인자</h2>
+        <ul id="riskFactors" class="space-y-2 text-sm"></ul>
+      </div>
+      <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="font-semibold">경고 이력</h2>
+          <label class="flex items-center gap-2 text-xs text-slate-300">
+            <input id="unackedOnly" type="checkbox" class="accent-cyan-300">
+            미확인만
+          </label>
+        </div>
+        <div id="events" class="max-h-64 space-y-2 overflow-auto text-sm"></div>
+      </div>
+    </section>
+
+    <section class="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+      <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h2 class="mb-3 font-semibold">침상별 최신 상태</h2>
+        <div id="beds" class="space-y-2 text-sm"></div>
+      </div>
+      <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h2 class="mb-3 font-semibold">AI 이벤트 수동 입력</h2>
+        <div class="grid gap-2 md:grid-cols-5">
+          <input id="manualBedId" class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" value="BED-01">
+          <select id="manualPosition" class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="center">center</option>
+            <option value="left_edge">left_edge</option>
+            <option value="right_edge">right_edge</option>
+          </select>
+          <select id="manualPosture" class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="lying">lying</option>
+            <option value="sitting">sitting</option>
+            <option value="exit_attempt">exit_attempt</option>
+          </select>
+          <select id="manualGuardrail" class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="true">가드레일 올라감</option>
+            <option value="false">가드레일 내려감</option>
+          </select>
+          <select id="manualCaregiver" class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="true">보호 인력 있음</option>
+            <option value="false">보호 인력 없음</option>
+          </select>
+        </div>
+        <button id="sendManualEvent" class="mt-3 rounded bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950">전송</button>
+      </div>
+    </section>
+
+    <section class="mt-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <h2 class="mb-3 font-semibold">상태 질의응답</h2>
+      <div class="flex gap-2">
+        <input id="question" class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2" placeholder="예: 지금 위험해? 가드레일 상태는?">
+        <button id="ask" class="rounded bg-cyan-400 px-4 py-2 font-semibold text-slate-950">질문</button>
+      </div>
+      <p id="answer" class="mt-3 text-slate-300"></p>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const levelClass = {
+      NORMAL: "border-emerald-500 bg-emerald-950",
+      CAUTION: "border-amber-400 bg-amber-950",
+      DANGER: "border-rose-500 bg-rose-950"
+    };
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function renderStatus(status) {
+      $("riskCard").className = `rounded-lg border p-4 ${levelClass[status.riskLevel] || "border-slate-800 bg-slate-900"}`;
+      $("riskLabel").textContent = status.riskLabel;
+      $("riskScore").textContent = `점수 ${status.riskScore}`;
+      $("patientName").textContent = status.patientName;
+      $("position").textContent = status.patientPosition;
+      $("posture").textContent = status.posture;
+      $("guardrail").textContent = status.guardrailUp ? "올라감" : "내려감";
+      $("caregiver").textContent = status.caregiverPresent ? "있음" : "없음";
+      $("guardrailOverlay").className = `absolute right-[20%] top-[15%] h-[68%] w-2 rounded ${status.guardrailUp ? "bg-emerald-400" : "bg-rose-500"}`;
+      setBox($("roiBox"), status.roi || {x: 18, y: 18, width: 62, height: 62});
+      if (status.patientBox) {
+        setBox($("patientBox"), status.patientBox);
+      } else {
+        const nearEdge = String(status.patientPosition).includes("edge") || String(status.patientPosition).includes("끝");
+        setBox($("patientBox"), {x: nearEdge ? 58 : 40, y: status.posture.includes("lying") ? 36 : 26, width: 18, height: 28});
+      }
+      $("riskFactors").innerHTML = status.riskFactors.map((f) => `<li class="rounded bg-slate-950 px-3 py-2">${f}</li>`).join("");
+    }
+
+    function renderSummary(summary) {
+      $("normalCount").textContent = summary.normalEvents;
+      $("cautionCount").textContent = summary.cautionEvents;
+      $("dangerCount").textContent = summary.dangerEvents;
+    }
+
+    function setBox(element, box) {
+      element.style.left = `${box.x}%`;
+      element.style.top = `${box.y}%`;
+      element.style.width = `${box.width}%`;
+      element.style.height = `${box.height}%`;
+    }
+
+    function renderEvents(events) {
+      $("events").innerHTML = events.map((event) => `
+        <div class="rounded bg-slate-950 px-3 py-2">
+          <div class="flex justify-between gap-3">
+            <strong>${event.riskLabel} / ${event.riskScore}점 ${event.acknowledged ? "(확인됨)" : ""}</strong>
+            <span class="text-slate-400">${new Date(event.occurredAt).toLocaleTimeString()}</span>
+          </div>
+          <div class="text-slate-300">${event.summary}</div>
+          <div class="mt-2 flex items-center justify-between gap-2 text-xs text-slate-400">
+            <span>${event.bedId} · ${event.patientPosition} · ${event.posture}</span>
+            ${event.acknowledged ? "" : `<button class="rounded bg-slate-800 px-2 py-1 text-cyan-200" data-ack-id="${event.id}">확인</button>`}
+          </div>
+        </div>
+      `).join("");
+      document.querySelectorAll("[data-ack-id]").forEach((button) => {
+        button.addEventListener("click", () => acknowledgeEvent(button.dataset.ackId));
+      });
+    }
+
+    function renderBeds(beds) {
+      $("beds").innerHTML = beds.map(({bedId, status}) => `
+        <button class="w-full rounded bg-slate-950 px-3 py-2 text-left" data-bed-id="${bedId}">
+          <div class="flex justify-between gap-3">
+            <strong>${bedId}</strong>
+            <span>${status.riskLabel} / ${status.riskScore}점</span>
+          </div>
+          <div class="text-slate-400">${status.patientName} · ${status.posture}</div>
+        </button>
+      `).join("");
+      document.querySelectorAll("[data-bed-id]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const events = await fetchJson(`/api/events?bedId=${encodeURIComponent(button.dataset.bedId)}&limit=20`);
+          renderEvents(events);
+        });
+      });
+    }
+
+    async function refresh() {
+      const query = $("unackedOnly").checked ? "/api/events?acknowledged=false&limit=20" : "/api/events?limit=20";
+      const [status, events, summary, beds] = await Promise.all([
+        fetchJson("/api/status/current"),
+        fetchJson(query),
+        fetchJson("/api/status/summary"),
+        fetchJson("/api/beds")
+      ]);
+      renderStatus(status);
+      renderEvents(events);
+      renderSummary(summary);
+      renderBeds(beds);
+    }
+
+    async function acknowledgeEvent(id) {
+      await fetchJson(`/api/events/${id}/ack`, {method: "POST"});
+      await refresh();
+    }
+
+    $("demoEvent").addEventListener("click", async () => {
+      const status = await fetchJson("/api/demo/events", {method: "POST"});
+      renderStatus(status);
+      const [events, summary, beds] = await Promise.all([
+        fetchJson($("unackedOnly").checked ? "/api/events?acknowledged=false&limit=20" : "/api/events?limit=20"),
+        fetchJson("/api/status/summary"),
+        fetchJson("/api/beds")
+      ]);
+      renderEvents(events);
+      renderSummary(summary);
+      renderBeds(beds);
+    });
+
+    $("sendManualEvent").addEventListener("click", async () => {
+      const payload = {
+        cameraId: "CAM-01",
+        bedId: $("manualBedId").value,
+        patientName: "관리 환자",
+        patientPosition: $("manualPosition").value,
+        posture: $("manualPosture").value,
+        guardrailUp: $("manualGuardrail").value === "true",
+        caregiverPresent: $("manualCaregiver").value === "true",
+        roi: {x: 18, y: 18, width: 62, height: 62},
+        patientBox: $("manualPosition").value === "left_edge"
+          ? {x: 20, y: 27, width: 18, height: 30}
+          : $("manualPosition").value === "right_edge"
+            ? {x: 64, y: 24, width: 18, height: 34}
+            : {x: 40, y: 36, width: 18, height: 28}
+      };
+      const status = await fetchJson("/api/ai/events", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+      renderStatus(status);
+      const [events, summary, beds] = await Promise.all([
+        fetchJson($("unackedOnly").checked ? "/api/events?acknowledged=false&limit=20" : "/api/events?limit=20"),
+        fetchJson("/api/status/summary"),
+        fetchJson("/api/beds")
+      ]);
+      renderEvents(events);
+      renderSummary(summary);
+      renderBeds(beds);
+    });
+
+    $("unackedOnly").addEventListener("change", refresh);
+
+    $("ask").addEventListener("click", async () => {
+      const question = $("question").value;
+      const data = await fetchJson("/api/questions", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({question})
+      });
+      $("answer").textContent = data.answer;
+    });
+
+    refresh();
+    const events = new EventSource("/sse/status");
+    events.addEventListener("status", (message) => {
+      renderStatus(JSON.parse(message.data));
+      fetchJson($("unackedOnly").checked ? "/api/events?acknowledged=false&limit=20" : "/api/events?limit=20").then(renderEvents);
+      fetchJson("/api/status/summary").then(renderSummary);
+      fetchJson("/api/beds").then(renderBeds);
+    });
+  </script>
+</body>
+</html>

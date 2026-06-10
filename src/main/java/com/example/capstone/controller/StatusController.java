@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.example.capstone.domain.RiskLevel;
+import com.example.capstone.dto.AcknowledgeResponse;
 import com.example.capstone.dto.BedStatusResponse;
 import com.example.capstone.dto.EventResponse;
 import com.example.capstone.dto.StatusSummaryResponse;
@@ -54,6 +56,13 @@ public class StatusController {
 	public EventResponse acknowledge(@PathVariable String eventId) {
 		log.info("[POST] /api/events/{}/ack", eventId);
 		return monitoringService.acknowledgeEvent(eventId);
+	}
+
+	@PatchMapping("/api/events/{eventId}/acknowledge")
+	public AcknowledgeResponse acknowledgeV2(@PathVariable String eventId) {
+		log.info("[PATCH] /api/events/{}/acknowledge", eventId);
+		EventResponse event = monitoringService.acknowledgeEvent(eventId);
+		return new AcknowledgeResponse(event.id(), event.acknowledged());
 	}
 
 	@GetMapping("/api/status/summary")

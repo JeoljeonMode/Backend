@@ -17,6 +17,7 @@ public class MonitoringEvent {
 	private String cameraId;
 	private String bedId;
 	private String patientName;
+	private String patientNo;
 	private String patientPosition;
 	private String posture;
 	private boolean guardrailUp;
@@ -69,6 +70,14 @@ public class MonitoringEvent {
 
 	public void setPatientName(String patientName) {
 		this.patientName = patientName;
+	}
+
+	public String getPatientNo() {
+		return patientNo;
+	}
+
+	public void setPatientNo(String patientNo) {
+		this.patientNo = patientNo;
 	}
 
 	public String getPatientPosition() {

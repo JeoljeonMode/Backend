@@ -7,6 +7,7 @@ public record AiEventRequest(
 		String cameraId,
 		String bedId,
 		String patientName,
+		String patientNo,
 		String patientPosition,
 		String posture,
 		Boolean guardrailUp,

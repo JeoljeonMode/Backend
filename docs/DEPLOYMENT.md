@@ -31,7 +31,8 @@ CI 단계:
 
 애플리케이션/DB 설정값 (`.env`로 전달됨, `.env.example` 참고):
 
-- `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSL_MODE`
+  - AWS RDS 등 외부 MySQL을 사용하는 경우 `DB_HOST`에 RDS 엔드포인트, `DB_SSL_MODE`에 `VERIFY_IDENTITY`를 설정한다.
 - `JWT_SECRET`, `ADMIN_PASSWORD`
 
 GHCR 이미지 인증 (선택):
@@ -44,5 +45,5 @@ GHCR 이미지 인증 (선택):
 - Docker, Docker Compose v2 (`docker compose`) 설치
 - `DEPLOY_PATH` 디렉터리 쓰기 권한 (CI가 `docker-compose.yml`, `.env`를 이 경로에 생성)
 
-배포 후 컨테이너 구성은 `docker-compose.prod.yml` 참고: `mysql` + `app`(GHCR 이미지) 2개 서비스로 구성되며,
-`app`은 `mysql`의 healthcheck 통과 후 기동된다.
+배포 후 컨테이너 구성은 `docker-compose.prod.yml` 참고: `app`(GHCR 이미지) 1개 서비스로 구성되며,
+`DB_HOST`로 지정한 외부 MySQL(AWS RDS 등)에 접속한다.

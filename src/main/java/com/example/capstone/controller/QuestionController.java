@@ -21,6 +21,6 @@ public class QuestionController {
 
 	@PostMapping
 	public QuestionResponse ask(@RequestBody QuestionRequest request) {
-		return new QuestionResponse(questionService.answer(request.question()));
+		return new QuestionResponse(questionService.answer(request.question(), request.bedId()));
 	}
 }

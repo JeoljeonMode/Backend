@@ -1,5 +1,6 @@
 package com.example.capstone.service;
 
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.stereotype.Service;
@@ -15,8 +16,15 @@ public class QuestionService {
 		this.monitoringService = monitoringService;
 	}
 
-	public String answer(String question) {
-		EventResponse status = monitoringService.currentStatus();
+	public String answer(String question, String bedId) {
+		EventResponse status;
+		if (bedId != null && !bedId.isBlank()) {
+			List<EventResponse> events = monitoringService.searchEvents(bedId, null, null, 1);
+			status = events.isEmpty() ? monitoringService.currentStatus() : events.get(0);
+		} else {
+			status = monitoringService.currentStatus();
+		}
+
 		String normalized = question == null ? "" : question.toLowerCase(Locale.ROOT);
 
 		if (normalized.contains("위험") || normalized.contains("risk")) {

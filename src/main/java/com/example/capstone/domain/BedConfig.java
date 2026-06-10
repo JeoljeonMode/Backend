@@ -3,13 +3,15 @@ package com.example.capstone.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 import lombok.Data;
 
 @Data
-@Document(collection = "bed_configs")
+@Entity
+@Table(name = "bed_configs")
 public class BedConfig {
 
     @Id

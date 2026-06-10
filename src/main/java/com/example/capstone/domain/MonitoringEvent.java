@@ -5,10 +5,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.Table;
 
-@Document(collection = "monitoring_events")
+@Entity
+@Table(name = "monitoring_events")
 public class MonitoringEvent {
 
 	@Id
@@ -23,12 +37,37 @@ public class MonitoringEvent {
 	private boolean guardrailUp;
 	private boolean caregiverPresent;
 	private int riskScore;
+
+	@Enumerated(EnumType.STRING)
 	private RiskLevel riskLevel;
+
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "monitoring_event_risk_factors", joinColumns = @JoinColumn(name = "event_id"))
+	@OrderColumn(name = "factor_order")
+	@Column(name = "factor")
 	private List<String> riskFactors = new ArrayList<>();
+
 	private String summary;
 	private String frameUrl;
+
+	@Embedded
+	@AttributeOverrides({
+			@AttributeOverride(name = "x", column = @Column(name = "roi_x")),
+			@AttributeOverride(name = "y", column = @Column(name = "roi_y")),
+			@AttributeOverride(name = "width", column = @Column(name = "roi_width")),
+			@AttributeOverride(name = "height", column = @Column(name = "roi_height"))
+	})
 	private DetectionBox roi;
+
+	@Embedded
+	@AttributeOverrides({
+			@AttributeOverride(name = "x", column = @Column(name = "patient_box_x")),
+			@AttributeOverride(name = "y", column = @Column(name = "patient_box_y")),
+			@AttributeOverride(name = "width", column = @Column(name = "patient_box_width")),
+			@AttributeOverride(name = "height", column = @Column(name = "patient_box_height"))
+	})
 	private DetectionBox patientBox;
+
 	private boolean acknowledged;
 	private Instant acknowledgedAt;
 
@@ -184,6 +223,7 @@ public class MonitoringEvent {
 		this.acknowledgedAt = acknowledgedAt;
 	}
 
+	@Embeddable
 	public record DetectionBox(double x, double y, double width, double height) {
 	}
 }

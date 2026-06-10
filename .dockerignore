@@ -1,0 +1,10 @@
+build/
+.gradle/
+.git/
+.idea/
+.vscode/
+docs/
+*.md
+.env
+.env.*
+docker-compose*.yml

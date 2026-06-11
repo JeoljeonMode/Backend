@@ -2,7 +2,7 @@ spring:
   application:
     name: capstone-fall-monitoring
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:capstone}?useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&sslMode=${DB_SSL_MODE:PREFERRED}
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:capstone}?useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&sslMode=${DB_SSL_MODE:PREFERRED}&createDatabaseIfNotExist=true
     username: ${DB_USERNAME:capstone}
     password: ${DB_PASSWORD:capstone}
     driver-class-name: com.mysql.cj.jdbc.Driver

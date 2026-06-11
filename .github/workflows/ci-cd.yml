@@ -94,6 +94,7 @@ jobs:
       DB_SSL_MODE: ${{ secrets.DB_SSL_MODE }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      PORT: ${{ secrets.PORT }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
     steps:
@@ -131,6 +132,7 @@ jobs:
           DB_SSL_MODE=$DB_SSL_MODE
           JWT_SECRET=$JWT_SECRET
           ADMIN_PASSWORD=$ADMIN_PASSWORD
+          PORT=$PORT
           EOF
 
       - name: Upload compose file and env

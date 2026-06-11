@@ -12,6 +12,6 @@ services:
       DB_SSL_MODE: ${DB_SSL_MODE}
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      PORT: 8083
+      PORT: ${PORT:-8080}
     ports:
-      - "8083:8083"
+      - "${PORT:-8080}:${PORT:-8080}"

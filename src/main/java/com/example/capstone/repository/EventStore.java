@@ -14,16 +14,16 @@ import com.example.capstone.domain.RiskLevel;
 
 public interface EventStore extends JpaRepository<MonitoringEvent, String> {
 
-	Optional<MonitoringEvent> findFirstByOrderByOccurredAtDesc();
+	Optional<MonitoringEvent> findFirstByOrderByOccurredAtDescIdDesc();
 
 	default Optional<MonitoringEvent> findLatest() {
-		return findFirstByOrderByOccurredAtDesc();
+		return findFirstByOrderByOccurredAtDescIdDesc();
 	}
 
-	List<MonitoringEvent> findByOrderByOccurredAtDesc(Pageable pageable);
+	List<MonitoringEvent> findByOrderByOccurredAtDescIdDesc(Pageable pageable);
 
 	default List<MonitoringEvent> findRecent(int limit) {
-		return findByOrderByOccurredAtDesc(PageRequest.of(0, limit));
+		return findByOrderByOccurredAtDescIdDesc(PageRequest.of(0, limit));
 	}
 
 	@Query("""
@@ -31,7 +31,7 @@ public interface EventStore extends JpaRepository<MonitoringEvent, String> {
 			WHERE (:bedId IS NULL OR e.bedId = :bedId)
 			  AND (:riskLevel IS NULL OR e.riskLevel = :riskLevel)
 			  AND (:acknowledged IS NULL OR e.acknowledged = :acknowledged)
-			ORDER BY e.occurredAt DESC
+			ORDER BY e.occurredAt DESC, e.id DESC
 			""")
 	List<MonitoringEvent> findRecent(@Param("bedId") String bedId,
 			@Param("riskLevel") RiskLevel riskLevel,

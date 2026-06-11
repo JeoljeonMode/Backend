@@ -19,7 +19,10 @@ public class BedConfig {
     private String bedId;
     private String cameraId;
     private String location;
+    private String roomId;
     private String patientId;
+    private String patientName;
+    private String patientNo;
     private boolean active = true;
     private Instant createdAt = Instant.now();
 }

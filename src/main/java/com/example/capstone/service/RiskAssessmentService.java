@@ -59,7 +59,7 @@ public class RiskAssessmentService {
 		return switch (normalize(position)) {
 			case "left_edge" -> "침대 좌측 끝 근접";
 			case "right_edge" -> "침대 우측 끝 근접";
-			case "out_of_bed" -> "침상 밖";
+			case "out_of_bed" -> "침대 밖 근접";
 			default -> "침대 끝 근접";
 		};
 	}
@@ -75,8 +75,8 @@ public class RiskAssessmentService {
 	private String buildSummary(String patientName, RiskLevel level) {
 		return switch (level) {
 			case DANGER -> "%s 환자에서 낙상 위험이 감지되었습니다.\n즉시 현장 확인이 필요합니다.".formatted(patientName);
-			case CAUTION -> "%s 환자에서 주의가 필요합니다.\n침대 상태를 확인해 주세요.".formatted(patientName);
-			case NORMAL -> "%s 환자의 상태가 안정적입니다.".formatted(patientName);
+			case CAUTION -> "%s 환자에서 주의 요인이 감지되었습니다.\n확인이 필요합니다.".formatted(patientName);
+			case NORMAL -> "%s 환자는 안정 상태입니다.".formatted(patientName);
 		};
 	}
 

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.example.capstone.domain.BedConfig;
 import com.example.capstone.domain.MonitoringEvent;
 import com.example.capstone.domain.MonitoringEvent.DetectionBox;
 import com.example.capstone.domain.RiskLevel;
@@ -24,6 +26,7 @@ import com.example.capstone.dto.AiEventRequest.Box;
 import com.example.capstone.dto.BedStatusResponse;
 import com.example.capstone.dto.EventResponse;
 import com.example.capstone.dto.StatusSummaryResponse;
+import com.example.capstone.repository.BedConfigStore;
 import com.example.capstone.repository.EventStore;
 import com.example.capstone.repository.PatientStore;
 import com.example.capstone.service.RiskAssessmentService.RiskAssessment;
@@ -37,13 +40,16 @@ public class MonitoringService implements ApplicationRunner {
 	private final EventStore eventStore;
 	private final RiskAssessmentService riskAssessmentService;
 	private final PatientStore patientStore;
+	private final BedConfigStore bedConfigStore;
 	private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 	private final AtomicInteger demoStep = new AtomicInteger();
 
-	public MonitoringService(EventStore eventStore, RiskAssessmentService riskAssessmentService, PatientStore patientStore) {
+	public MonitoringService(EventStore eventStore, RiskAssessmentService riskAssessmentService,
+			PatientStore patientStore, BedConfigStore bedConfigStore) {
 		this.eventStore = eventStore;
 		this.riskAssessmentService = riskAssessmentService;
 		this.patientStore = patientStore;
+		this.bedConfigStore = bedConfigStore;
 	}
 
 	public EventResponse acceptEvent(AiEventRequest request) {
@@ -101,20 +107,28 @@ public class MonitoringService implements ApplicationRunner {
 	}
 
 	public List<BedStatusResponse> bedStatuses() {
+		Map<String, BedConfig> bedConfigsByBedId = bedConfigStore.findAll().stream()
+				.collect(Collectors.toMap(BedConfig::getBedId, config -> config, (first, second) -> first));
+
+		// findRecent() is ordered by occurredAt DESC, id DESC, so the first event seen per bed is the latest one.
 		Map<String, EventResponse> latestByBed = eventStore.findRecent(500).stream()
 				.map(EventResponse::from)
 				.collect(Collectors.toMap(
 						EventResponse::bedId,
 						event -> event,
-						(first, second) -> first.occurredAt().isAfter(second.occurredAt()) ? first : second
+						(first, second) -> first
 				));
+
 		return latestByBed.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey())
-				.map(entry -> new BedStatusResponse(
-						entry.getKey(),
-						toRoomId(entry.getKey()),
-						entry.getValue().cameraId(),
-						entry.getValue()))
+				.map(entry -> {
+					BedConfig config = bedConfigsByBedId.get(entry.getKey());
+					String roomId = config != null && config.getRoomId() != null
+							? config.getRoomId() : toRoomId(entry.getKey());
+					String cameraId = config != null && config.getCameraId() != null
+							? config.getCameraId() : entry.getValue().cameraId();
+					return new BedStatusResponse(entry.getKey(), roomId, cameraId, entry.getValue());
+				})
 				.toList();
 	}
 
@@ -180,29 +194,131 @@ public class MonitoringService implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
-		if (eventStore.findLatest().isPresent()) {
-			return;
+		Instant t0 = Instant.now();
+		for (SeedEvent seed : SEED_EVENTS) {
+			upsertSeedEvent(seed, t0);
 		}
-		log.info("[시작] 초기 시드 이벤트 6건 적재");
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(120), "CAM-01", "B-101", "김철수", "24-1011",
-				"center", "lying", true, true, null,
-				new Box(18, 18, 62, 62), new Box(40, 36, 18, 28)));
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(90), "CAM-01", "B-102", "이영희", "24-1012",
-				"right_edge", "sitting", true, false, null,
-				new Box(18, 18, 62, 62), new Box(58, 26, 18, 30)));
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(60), "CAM-01", "B-103", "박민준", "24-1013",
-				"right_edge", "exit_attempt", false, false, null,
-				new Box(18, 18, 62, 62), new Box(64, 24, 18, 34)));
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(45), "CAM-02", "B-104", "최수진", "24-1014",
-				"center", "lying", true, true, null,
-				new Box(18, 18, 62, 62), new Box(40, 36, 18, 28)));
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(30), "CAM-02", "B-105", "정우성", "24-1015",
-				"left_edge", "sitting", false, true, null,
-				new Box(18, 18, 62, 62), new Box(20, 27, 18, 30)));
-		acceptEvent(new AiEventRequest(Instant.now().minusSeconds(15), "CAM-04", "B-201", "김유진", "24-2011",
-				"center", "lying", true, true, null,
-				new Box(18, 18, 62, 62), new Box(40, 36, 18, 28)));
+		log.info("[시작] 시드 이벤트 {}건 upsert 완료 (T0={})", SEED_EVENTS.size(), t0);
 	}
+
+	private void upsertSeedEvent(SeedEvent seed, Instant t0) {
+		BedInfo info = BED_INFO.get(seed.bedId());
+		AiEventRequest request = new AiEventRequest(
+				t0.minusMillis(seed.offsetMillis()),
+				toCameraId(seed.bedId()),
+				seed.bedId(),
+				info.patientName(),
+				info.patientNo(),
+				seed.position(),
+				seed.posture(),
+				seed.guardrailUp(),
+				seed.caregiverPresent(),
+				null, null, null);
+		RiskAssessment assessment = riskAssessmentService.assess(request);
+
+		MonitoringEvent event = eventStore.findById(seed.id()).orElseGet(MonitoringEvent::new);
+		event.setId(seed.id());
+		event.setOccurredAt(request.occurredAt());
+		event.setCameraId(request.cameraId());
+		event.setBedId(request.bedId());
+		event.setPatientName(request.patientName());
+		event.setPatientNo(request.patientNo());
+		event.setPatientPosition(request.patientPosition());
+		event.setPosture(request.posture());
+		event.setGuardrailUp(Boolean.TRUE.equals(request.guardrailUp()));
+		event.setCaregiverPresent(Boolean.TRUE.equals(request.caregiverPresent()));
+		event.setRiskScore(assessment.score());
+		event.setRiskLevel(assessment.level());
+		event.setRiskFactors(assessment.factors());
+		event.setSummary(assessment.summary());
+		eventStore.save(event);
+	}
+
+	private record BedInfo(String patientName, String patientNo) {
+	}
+
+	private record SeedEvent(String id, String bedId, long offsetMillis, String position, String posture,
+			boolean guardrailUp, boolean caregiverPresent) {
+	}
+
+	private static final Map<String, BedInfo> BED_INFO = Map.ofEntries(
+			Map.entry("B-101", new BedInfo("김철수", "24-1011")),
+			Map.entry("B-102", new BedInfo("박영호", "24-1012")),
+			Map.entry("B-103", new BedInfo("이민준", "24-1013")),
+			Map.entry("B-104", new BedInfo("최진혁", "24-1021")),
+			Map.entry("B-105", new BedInfo("정우성", "24-1022")),
+			Map.entry("B-106", new BedInfo("윤기준", "24-1023")),
+			Map.entry("B-107", new BedInfo("강민호", "24-1031")),
+			Map.entry("B-108", new BedInfo("한동훈", "24-1032")),
+			Map.entry("B-109", new BedInfo("조재원", "24-1033")),
+			Map.entry("B-110", new BedInfo("임성규", "24-1034")),
+			Map.entry("B-201", new BedInfo("김지연", "24-2011")),
+			Map.entry("B-202", new BedInfo("박서현", "24-2012")),
+			Map.entry("B-203", new BedInfo("이수현", "24-2013")),
+			Map.entry("B-204", new BedInfo("최민서", "24-2021")),
+			Map.entry("B-205", new BedInfo("정지현", "24-2022")));
+
+	// docs/backend-seed-data-spec.md §5 병상 현재 상태 (15건)
+	private static final List<SeedEvent> CURRENT_STATUS_SEED_EVENTS = List.of(
+			new SeedEvent("e-101a", "B-101", 0L, "center", "sitting", true, false),
+			new SeedEvent("e-101b", "B-102", 180_000L, "center", "lying", true, false),
+			new SeedEvent("e-101c", "B-103", 360_000L, "center", "lying", true, true),
+			new SeedEvent("e-102a", "B-104", 540_000L, "center", "lying", true, true),
+			new SeedEvent("e-102b", "B-105", 720_000L, "center", "sitting", true, false),
+			new SeedEvent("e-102c", "B-106", 900_000L, "center", "lying", true, false),
+			new SeedEvent("e-103a", "B-107", 1_080_000L, "center", "lying", true, false),
+			new SeedEvent("e-103b", "B-108", 1_260_000L, "center", "lying", true, true),
+			new SeedEvent("e-103c", "B-109", 1_440_000L, "center", "lying", true, false),
+			new SeedEvent("e-103d", "B-110", 1_620_000L, "right_edge", "exit_attempt", false, false),
+			new SeedEvent("e-201a", "B-201", 1_800_000L, "center", "lying", true, true),
+			new SeedEvent("e-201b", "B-202", 1_980_000L, "center", "lying", true, false),
+			new SeedEvent("e-201c", "B-203", 2_160_000L, "center", "lying", true, true),
+			new SeedEvent("e-202a", "B-204", 2_340_000L, "center", "lying", true, true),
+			new SeedEvent("e-202b", "B-205", 2_520_000L, "out_of_bed", "exit_attempt", false, false));
+
+	// docs/backend-seed-data-spec.md §6 이벤트 로그 (19건)
+	private static final List<SeedEvent> EVENT_LOG_SEED_EVENTS = List.of(
+			new SeedEvent("evt-B-205-r1", "B-205", 0L, "out_of_bed", "exit_attempt", false, false),
+			new SeedEvent("evt-B-110-r2", "B-110", 300_000L, "right_edge", "exit_attempt", false, false),
+			new SeedEvent("evt-B-101-r3", "B-101", 720_000L, "center", "sitting", true, false),
+			new SeedEvent("evt-B-105-r4", "B-105", 1_080_000L, "center", "sitting", true, false),
+			new SeedEvent("evt-B-102-r5", "B-102", 1_500_000L, "center", "lying", true, false),
+			new SeedEvent("evt-B-204-r6", "B-204", 1_920_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-201-r7", "B-201", 2_400_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-107-r8", "B-107", 2_880_000L, "center", "lying", true, false),
+			new SeedEvent("evt-B-205-h1", "B-205", 4_200_000L, "left_edge", "sitting", true, false),
+			new SeedEvent("evt-B-205-h2", "B-205", 7_200_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-110-h3", "B-110", 5_400_000L, "left_edge", "sitting", true, false),
+			new SeedEvent("evt-B-110-h4", "B-110", 9_000_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-101-h5", "B-101", 10_800_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-105-h6", "B-105", 10_800_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-103-h7", "B-103", 12_000_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-104-h8", "B-104", 12_600_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-108-h9", "B-108", 13_200_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-202-h10", "B-202", 13_800_000L, "center", "lying", true, false),
+			new SeedEvent("evt-B-203-h11", "B-203", 14_400_000L, "center", "lying", true, true));
+
+	// docs/backend-seed-data-spec.md §7 병상 상세 추가 이벤트 (14건)
+	private static final List<SeedEvent> BED_DETAIL_SEED_EVENTS = List.of(
+			new SeedEvent("evt-B-205-ph1", "B-205", 0L, "out_of_bed", "exit_attempt", false, false),
+			new SeedEvent("evt-B-205-ph2", "B-205", 2_100_000L, "left_edge", "sitting", true, false),
+			new SeedEvent("evt-B-205-ph3", "B-205", 5_400_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-205-ph4", "B-205", 10_800_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-110-ph1", "B-110", 300_000L, "right_edge", "exit_attempt", false, false),
+			new SeedEvent("evt-B-110-ph2", "B-110", 3_000_000L, "left_edge", "sitting", true, false),
+			new SeedEvent("evt-B-110-ph3", "B-110", 7_200_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-110-ph4", "B-110", 12_600_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-101-ph1", "B-101", 720_000L, "center", "sitting", true, false),
+			new SeedEvent("evt-B-101-ph2", "B-101", 6_000_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-101-ph3", "B-101", 12_000_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-105-ph1", "B-105", 1_080_000L, "center", "sitting", true, false),
+			new SeedEvent("evt-B-105-ph2", "B-105", 6_600_000L, "center", "lying", true, true),
+			new SeedEvent("evt-B-105-ph3", "B-105", 12_000_000L, "center", "lying", true, true));
+
+	private static final List<SeedEvent> SEED_EVENTS = Stream.of(
+			CURRENT_STATUS_SEED_EVENTS, EVENT_LOG_SEED_EVENTS, BED_DETAIL_SEED_EVENTS)
+			.flatMap(List::stream)
+			.toList();
 
 	private void broadcast(EventResponse response) {
 		for (SseEmitter emitter : emitters) {

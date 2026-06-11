@@ -9,11 +9,16 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: ${DDL_AUTO:update}
+      ddl-auto: ${DDL_AUTO:validate}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: false
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${FLYWAY_BASELINE_VERSION:1}
 
 server:
   port: ${PORT:8083}

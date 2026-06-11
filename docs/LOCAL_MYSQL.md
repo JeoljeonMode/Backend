@@ -33,7 +33,10 @@ docker compose logs -f mysql
 DB_HOST=localhost DB_PORT=3306 DB_NAME=capstone DB_USERNAME=capstone DB_PASSWORD=capstone ./gradlew bootRun
 ```
 
-테이블은 `spring.jpa.hibernate.ddl-auto=update` 설정에 따라 애플리케이션 기동 시 자동 생성/갱신된다.
+테이블은 Flyway 마이그레이션(`src/main/resources/db/migration`)으로 생성/변경된다.
+애플리케이션 기본 설정은 `spring.jpa.hibernate.ddl-auto=validate`라서 엔티티와 DB 스키마가 맞는지 검증만 수행한다.
+
+기존에 `ddl-auto=update`로 생성한 로컬 DB가 비어 있지 않으면 `FLYWAY_BASELINE_ON_MIGRATE=true` 기본값에 따라 Flyway 기준선이 자동 등록된다. 이후 스키마 변경은 새 마이그레이션 파일(`V2__...sql`)로 추가한다.
 
 ## Check data
 

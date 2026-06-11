@@ -10,3 +10,9 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: true
+
+app:
+  jwt:
+    secret: test-only-secret-key-must-be-at-least-32-characters
+  seed:
+    admin-password: test-admin-password

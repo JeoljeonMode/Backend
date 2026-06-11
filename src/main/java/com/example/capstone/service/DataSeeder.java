@@ -51,16 +51,13 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedAdmin() {
-        if (userStore.existsByUsername("admin")) {
-            return;
-        }
-        User admin = new User();
+        User admin = userStore.findByUsername("admin").orElseGet(User::new);
         admin.setUsername("admin");
         admin.setPassword(passwordEncoder.encode(adminPassword));
         admin.setRole("ADMIN");
         admin.setDisplayName("관리자");
         userStore.save(admin);
-        log.info("[시드] admin 계정 생성 완료");
+        log.info("[시드] admin 계정 upsert 완료");
     }
 
     private void seedRooms() {

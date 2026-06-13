@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -40,16 +41,18 @@ public class AlertController {
 	}
 
 	@GetMapping("/api/alerts/latest")
-	public AlertResponse latestAlert() {
-		return alertService.latest();
+	public AlertResponse latestAlert(@RequestParam(required = false) String deviceId) {
+		return alertService.latest(deviceId);
 	}
 
 	@GetMapping("/api/video-stream")
-	public ResponseEntity<StreamingResponseBody> videoStream() {
-		log.info("[GET] /api/video-stream");
+	public ResponseEntity<StreamingResponseBody> videoStream(
+			@RequestParam(required = false) String roomId,
+			@RequestParam(required = false) String cameraId) {
+		log.info("[GET] /api/video-stream roomId={} cameraId={}", roomId, cameraId);
 		return ResponseEntity.ok()
 				.contentType(MJPEG_MEDIA_TYPE)
-				.body(videoStreamProxyService.proxy());
+				.body(videoStreamProxyService.proxy(roomId, cameraId));
 	}
 
 	@GetMapping(path = "/sse/alerts", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

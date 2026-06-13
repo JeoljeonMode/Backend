@@ -21,6 +21,7 @@ import com.example.capstone.domain.BedConfig;
 import com.example.capstone.domain.MonitoringEvent;
 import com.example.capstone.domain.MonitoringEvent.DetectionBox;
 import com.example.capstone.domain.RiskLevel;
+import com.example.capstone.dto.AlertRequest;
 import com.example.capstone.dto.AiEventRequest;
 import com.example.capstone.dto.AiEventRequest.Box;
 import com.example.capstone.dto.BedStatusResponse;
@@ -82,6 +83,45 @@ public class MonitoringService implements ApplicationRunner {
 		EventResponse response = EventResponse.from(eventStore.save(event));
 		log.info("[이벤트 수신] bedId={} level={} score={} factors={}",
 				response.bedId(), response.riskLevel(), response.riskScore(), response.riskFactors());
+		broadcast(response);
+		return response;
+	}
+
+	public EventResponse acceptAlertEvent(AlertRequest request, BedConfig bedConfig) {
+		String statusText = valueOrDefault(request.statusText(), "VLM 분석 결과가 수신되었습니다.");
+		AiEventRequest aiRequest = new AiEventRequest(
+				toOccurredAt(request.timestamp()),
+				valueOrDefault(bedConfig.getCameraId(), "CAM-06"),
+				valueOrDefault(bedConfig.getBedId(), "B-206"),
+				valueOrDefault(bedConfig.getPatientName(), "203호 환자"),
+				bedConfig.getPatientNo(),
+				inferPatientPosition(statusText),
+				inferPosture(statusText),
+				!containsAny(statusText, "가드레일 내려", "난간 내려", "guardrail down"),
+				!containsAny(statusText, "보호자 없음", "간병인 없음", "caregiver absent"),
+				null,
+				null,
+				null);
+
+		RiskAssessment assessment = riskAssessmentService.assess(aiRequest);
+		MonitoringEvent event = new MonitoringEvent();
+		event.setOccurredAt(aiRequest.occurredAt());
+		event.setCameraId(aiRequest.cameraId());
+		event.setBedId(aiRequest.bedId());
+		event.setPatientName(aiRequest.patientName());
+		event.setPatientNo(aiRequest.patientNo());
+		event.setPatientPosition(aiRequest.patientPosition());
+		event.setPosture(aiRequest.posture());
+		event.setGuardrailUp(Boolean.TRUE.equals(aiRequest.guardrailUp()));
+		event.setCaregiverPresent(Boolean.TRUE.equals(aiRequest.caregiverPresent()));
+		event.setRiskScore(assessment.score());
+		event.setRiskLevel(assessment.level());
+		event.setRiskFactors(assessment.factors());
+		event.setSummary(truncate(statusText, 255));
+
+		EventResponse response = EventResponse.from(eventStore.save(event));
+		log.info("[VLM 알림 이벤트 반영] deviceId={} bedId={} level={} score={}",
+				request.deviceId(), response.bedId(), response.riskLevel(), response.riskScore());
 		broadcast(response);
 		return response;
 	}
@@ -256,9 +296,11 @@ public class MonitoringService implements ApplicationRunner {
 			Map.entry("B-202", new BedInfo("박서현", "24-2012")),
 			Map.entry("B-203", new BedInfo("이수현", "24-2013")),
 			Map.entry("B-204", new BedInfo("최민서", "24-2021")),
-			Map.entry("B-205", new BedInfo("정지현", "24-2022")));
+			Map.entry("B-205", new BedInfo("정지현", "24-2022")),
+			Map.entry("B-206", new BedInfo("203호 환자1", "24-2031")),
+			Map.entry("B-207", new BedInfo("203호 환자2", "24-2032")));
 
-	// docs/backend-seed-data-spec.md §5 병상 현재 상태 (15건)
+	// docs/backend-seed-data-spec.md §5 병상 현재 상태 + 203호 실제 연동 대기 상태
 	private static final List<SeedEvent> CURRENT_STATUS_SEED_EVENTS = List.of(
 			new SeedEvent("e-101a", "B-101", 0L, "center", "sitting", true, false),
 			new SeedEvent("e-101b", "B-102", 180_000L, "center", "lying", true, false),
@@ -274,7 +316,9 @@ public class MonitoringService implements ApplicationRunner {
 			new SeedEvent("e-201b", "B-202", 1_980_000L, "center", "lying", true, false),
 			new SeedEvent("e-201c", "B-203", 2_160_000L, "center", "lying", true, true),
 			new SeedEvent("e-202a", "B-204", 2_340_000L, "center", "lying", true, true),
-			new SeedEvent("e-202b", "B-205", 2_520_000L, "out_of_bed", "exit_attempt", false, false));
+			new SeedEvent("e-202b", "B-205", 2_520_000L, "out_of_bed", "exit_attempt", false, false),
+			new SeedEvent("e-203a", "B-206", 2_700_000L, "center", "lying", true, true),
+			new SeedEvent("e-203b", "B-207", 2_880_000L, "center", "lying", true, true));
 
 	// docs/backend-seed-data-spec.md §6 이벤트 로그 (19건)
 	private static final List<SeedEvent> EVENT_LOG_SEED_EVENTS = List.of(
@@ -351,6 +395,7 @@ public class MonitoringService implements ApplicationRunner {
 			case "B-107", "B-108", "B-109", "B-110" -> "103호";
 			case "B-201", "B-202", "B-203" -> "201호";
 			case "B-204", "B-205" -> "202호";
+			case "B-206", "B-207" -> "203호";
 			default -> bedId;
 		};
 	}
@@ -363,6 +408,7 @@ public class MonitoringService implements ApplicationRunner {
 			case "B-107", "B-108", "B-109", "B-110" -> "CAM-03";
 			case "B-201", "B-202", "B-203" -> "CAM-04";
 			case "B-204", "B-205" -> "CAM-05";
+			case "B-206", "B-207" -> "CAM-06";
 			default -> "CAM-01";
 		};
 	}
@@ -380,5 +426,55 @@ public class MonitoringService implements ApplicationRunner {
 			return null;
 		}
 		return new DetectionBox(box.x(), box.y(), box.width(), box.height());
+	}
+
+	private Instant toOccurredAt(Long epochSeconds) {
+		return epochSeconds == null ? Instant.now() : Instant.ofEpochSecond(epochSeconds);
+	}
+
+	private String inferPatientPosition(String statusText) {
+		if (containsAny(statusText, "침대 밖", "이탈", "out of bed")) {
+			return "out_of_bed";
+		}
+		if (containsAny(statusText, "좌측", "left")) {
+			return "left_edge";
+		}
+		if (containsAny(statusText, "우측", "right")) {
+			return "right_edge";
+		}
+		if (containsAny(statusText, "가장자리", "끝", "edge")) {
+			return "edge";
+		}
+		return "center";
+	}
+
+	private String inferPosture(String statusText) {
+		if (containsAny(statusText, "이탈", "벗어", "exit", "leaving")) {
+			return "exit_attempt";
+		}
+		if (containsAny(statusText, "앉", "sitting", "sit")) {
+			return "sitting";
+		}
+		return "lying";
+	}
+
+	private boolean containsAny(String value, String... needles) {
+		if (value == null) {
+			return false;
+		}
+		String normalized = value.toLowerCase();
+		for (String needle : needles) {
+			if (normalized.contains(needle.toLowerCase())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private String truncate(String value, int maxLength) {
+		if (value == null || value.length() <= maxLength) {
+			return value;
+		}
+		return value.substring(0, maxLength);
 	}
 }

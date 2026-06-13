@@ -66,7 +66,8 @@ public class DataSeeder implements ApplicationRunner {
         upsertRoom("103호", "103호 병실", "CAM-03", "남자", 4);
         upsertRoom("201호", "201호 병실", "CAM-04", "여자", 3);
         upsertRoom("202호", "202호 병실", "CAM-05", "여자", 2);
-        log.info("[시드] 병실 5개 upsert 완료");
+        upsertRoom("203호", "203호 병실", "CAM-06", "여자", 2);
+        log.info("[시드] 병실 6개 upsert 완료");
     }
 
     private void seedBedConfigs() {
@@ -90,7 +91,10 @@ public class DataSeeder implements ApplicationRunner {
         // 202호 병실 (여자, 정원 2, CAM-05)
         upsertBedConfig("B-204", "CAM-05", "202호", "202호 병실", "최민서", "24-2021");
         upsertBedConfig("B-205", "CAM-05", "202호", "202호 병실", "정지현", "24-2022");
-        log.info("[시드] 병상 설정 15개 upsert 완료");
+        // 203호 병실 (여자, 정원 2, CAM-06) - Jetson 실제 연동 대상
+        upsertBedConfig("B-206", "CAM-06", "203호", "203호 병실", "203호 환자1", "24-2031");
+        upsertBedConfig("B-207", "CAM-06", "203호", "203호 병실", "203호 환자2", "24-2032");
+        log.info("[시드] 병상 설정 17개 upsert 완료");
     }
 
     private void seedPatients() {
@@ -109,7 +113,9 @@ public class DataSeeder implements ApplicationRunner {
         upsertPatient("24-2013", "이수현", "FEMALE", "B-203");
         upsertPatient("24-2021", "최민서", "FEMALE", "B-204");
         upsertPatient("24-2022", "정지현", "FEMALE", "B-205");
-        log.info("[시드] 환자 15명 upsert 완료");
+        upsertPatient("24-2031", "203호 환자1", "FEMALE", "B-206");
+        upsertPatient("24-2032", "203호 환자2", "FEMALE", "B-207");
+        log.info("[시드] 환자 17명 upsert 완료");
     }
 
     private void upsertRoom(String roomId, String label, String cameraId, String gender, int capacity) {

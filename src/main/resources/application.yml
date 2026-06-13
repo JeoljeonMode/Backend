@@ -29,6 +29,11 @@ app:
     expiration-days: 30
   seed:
     admin-password: ${ADMIN_PASSWORD}
+  jetson:
+    video-feed-url: ${JETSON_VIDEO_FEED_URL:http://100.85.14.33:5000/video_feed}
+    connect-timeout-ms: ${JETSON_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${JETSON_READ_TIMEOUT_MS:0}
+    retry-delay-ms: ${JETSON_RETRY_DELAY_MS:1000}
 
 logging:
   level:

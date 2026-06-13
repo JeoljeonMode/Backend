@@ -39,7 +39,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
-        } else if (request.getServletPath().startsWith("/sse/")) {
+        } else if (supportsTokenQueryParam(request.getServletPath())) {
             token = request.getParameter("token");
         }
         if (token != null && jwtService.isTokenValid(token)) {
@@ -64,6 +64,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return "STAFF";
         }
         return role.startsWith("ROLE_") ? role.substring("ROLE_".length()) : role;
+    }
+
+    private boolean supportsTokenQueryParam(String path) {
+        return path.startsWith("/sse/") || "/api/video-stream".equals(path);
     }
 
     @Override

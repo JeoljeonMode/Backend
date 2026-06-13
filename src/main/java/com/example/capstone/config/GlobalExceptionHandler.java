@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -28,6 +29,19 @@ public class GlobalExceptionHandler {
         log.warn("400 Bad Request: {} {} | user={} | message={}",
                 request.getMethod(), request.getRequestURI(), currentUser(), e.getMessage());
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<?> handleResponseStatus(ResponseStatusException e, HttpServletRequest request) {
+        log.warn("{} {}: {} {} | user={} | message={}",
+                e.getStatusCode().value(), e.getStatusCode(),
+                request.getMethod(), request.getRequestURI(), currentUser(), e.getReason());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", e.getReason() != null ? e.getReason() : e.getMessage());
+        body.put("exception", e.getClass().getName());
+        body.put("path", request.getRequestURI());
+        return ResponseEntity.status(e.getStatusCode()).body(body);
     }
 
     @ExceptionHandler(Exception.class)

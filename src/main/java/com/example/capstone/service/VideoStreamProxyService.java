@@ -64,9 +64,14 @@ public class VideoStreamProxyService {
 	public StreamingResponseBody proxy(String roomId, String cameraId) {
 		String resolvedCameraId = resolveCameraId(roomId, cameraId);
 		String resolvedUpstreamUrl = resolveUpstreamUrl(resolvedCameraId);
+		log.info("[영상 스트림 준비] roomId={} 요청cameraId={} resolvedCameraId={} upstreamUrl={}",
+				valueOrDefault(roomId, "미지정"), valueOrDefault(cameraId, "미지정"),
+				valueOrDefault(resolvedCameraId, "미지정"), valueOrDefault(resolvedUpstreamUrl, "미설정"));
 		return outputStream -> {
 			while (!Thread.currentThread().isInterrupted()) {
 				if (resolvedUpstreamUrl == null || resolvedUpstreamUrl.isBlank()) {
+					log.warn("[영상 스트림 설정 없음] cameraId={} action=placeholder 전송",
+							valueOrDefault(resolvedCameraId, "미지정"));
 					if (!writePlaceholderFrame(outputStream, "Live camera not configured", resolvedCameraId)) {
 						return;
 					}
@@ -75,23 +80,30 @@ public class VideoStreamProxyService {
 				}
 				HttpURLConnection connection = null;
 				try {
+					log.info("[Jetson 영상 연결 시도] cameraId={} url={} connectTimeoutMs={} readTimeoutMs={}",
+							valueOrDefault(resolvedCameraId, "미지정"), resolvedUpstreamUrl,
+							connectTimeoutMillis, readTimeoutMillis);
 					connection = openConnection(resolvedUpstreamUrl);
 					int status = connection.getResponseCode();
 					if (status < 200 || status >= 300) {
-						log.warn("[영상 스트림] Jetson 응답 오류 status={} url={}", status, resolvedUpstreamUrl);
+						log.warn("[Jetson 영상 응답 오류] cameraId={} status={} url={} action=placeholder 전송",
+								valueOrDefault(resolvedCameraId, "미지정"), status, resolvedUpstreamUrl);
 						if (!writePlaceholderFrame(outputStream, "Camera unavailable", resolvedCameraId)) {
 							return;
 						}
 						sleepBeforeRetry();
 						continue;
 					}
-					log.info("[영상 스트림] Jetson 연결 성공 cameraId={} url={}", resolvedCameraId, resolvedUpstreamUrl);
+					log.info("[Jetson 영상 연결 성공] cameraId={} status={} contentType={} url={}",
+							valueOrDefault(resolvedCameraId, "미지정"), status, connection.getContentType(), resolvedUpstreamUrl);
 					if (!copyStream(connection, outputStream)) {
 						return;
 					}
 				}
 				catch (IOException e) {
-					log.warn("[영상 스트림] Jetson 연결/읽기 실패 url={} message={}", resolvedUpstreamUrl, e.getMessage());
+					log.warn("[Jetson 영상 연결 실패] cameraId={} url={} exception={} message={} action=placeholder 전송",
+							valueOrDefault(resolvedCameraId, "미지정"), resolvedUpstreamUrl,
+							e.getClass().getName(), e.getMessage());
 					if (!writePlaceholderFrame(outputStream, "Camera unavailable", resolvedCameraId)) {
 						return;
 					}
@@ -144,7 +156,7 @@ public class VideoStreamProxyService {
 					outputStream.flush();
 				}
 				catch (IOException clientDisconnected) {
-					log.info("[영상 스트림] 클라이언트 연결 종료");
+					log.info("[영상 스트림 종료] reason=클라이언트 연결 종료");
 					return false;
 				}
 			}
@@ -170,12 +182,18 @@ public class VideoStreamProxyService {
 			outputStream.write(image);
 			outputStream.write("\r\n".getBytes(StandardCharsets.US_ASCII));
 			outputStream.flush();
+			log.info("[영상 fallback 전송] title={} cameraId={} imageBytes={}",
+					title, valueOrDefault(cameraId, "미지정"), image.length);
 			return true;
 		}
 		catch (IOException clientDisconnected) {
-			log.info("[영상 스트림] placeholder 전송 중 클라이언트 연결 종료");
+			log.info("[영상 스트림 종료] reason=placeholder 전송 중 클라이언트 연결 종료");
 			return false;
 		}
+	}
+
+	private String valueOrDefault(String value, String fallback) {
+		return value == null || value.isBlank() ? fallback : value;
 	}
 
 	private byte[] createPlaceholderImage(String title, String cameraId) throws IOException {

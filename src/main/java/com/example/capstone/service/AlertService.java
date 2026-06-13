@@ -48,6 +48,11 @@ public class AlertService {
 	}
 
 	public AlertResponse accept(AlertRequest request) {
+		log.info("[VLM 알림 수신 시작] deviceId={} timestamp={} statusText={} snapshot={}",
+				valueOrDefault(request.deviceId(), "jetson_orin_nano_bed_01"),
+				request.timestamp(),
+				preview(request.statusText()),
+				snapshotSummary(request.snapshot()));
 		AlertResponse response = AlertResponse.from(new AlertRequest(
 				valueOrDefault(request.deviceId(), "jetson_orin_nano_bed_01"),
 				request.timestamp() == null ? Instant.now().getEpochSecond() : request.timestamp(),
@@ -57,29 +62,45 @@ public class AlertService {
 		latest.set(response);
 		latestByDeviceId.put(response.deviceId(), response);
 		reflectToMonitoringStatus(response);
-		log.info("[VLM 알림 수신] deviceId={} timestamp={} statusTextLength={} snapshot={}",
-				response.deviceId(), response.timestamp(), response.statusText().length(),
-				response.snapshot() == null || response.snapshot().isBlank() ? "empty" : "present");
+		log.info("[VLM 알림 수신 완료] deviceId={} timestamp={} statusText={} snapshot={} sseSubscribers={}",
+				response.deviceId(), response.timestamp(), preview(response.statusText()),
+				snapshotSummary(response.snapshot()), emitters.size());
 		broadcast(response);
 		return response;
 	}
 
 	public AlertResponse latest(String deviceId) {
+		log.info("[VLM 최신 알림 조회] deviceId={}", valueOrDefault(deviceId, "전체 최신"));
 		AlertResponse response = deviceId == null || deviceId.isBlank()
 				? latest.get()
 				: latestByDeviceId.get(deviceId);
 		if (response == null) {
+			log.warn("[VLM 최신 알림 조회 실패] deviceId={} reason=아직 수신된 알림 없음",
+					valueOrDefault(deviceId, "전체 최신"));
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No alert has been received yet");
 		}
+		log.info("[VLM 최신 알림 조회 성공] deviceId={} timestamp={} statusText={}",
+				response.deviceId(), response.timestamp(), preview(response.statusText()));
 		return response;
 	}
 
 	public SseEmitter subscribe() {
 		SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
 		emitters.add(emitter);
-		emitter.onCompletion(() -> emitters.remove(emitter));
-		emitter.onTimeout(() -> emitters.remove(emitter));
-		emitter.onError(error -> emitters.remove(emitter));
+		log.info("[VLM SSE 연결] 현재구독자수={}", emitters.size());
+		emitter.onCompletion(() -> {
+			emitters.remove(emitter);
+			log.info("[VLM SSE 종료] reason=completion 현재구독자수={}", emitters.size());
+		});
+		emitter.onTimeout(() -> {
+			emitters.remove(emitter);
+			log.warn("[VLM SSE 종료] reason=timeout 현재구독자수={}", emitters.size());
+		});
+		emitter.onError(error -> {
+			emitters.remove(emitter);
+			log.warn("[VLM SSE 오류] reason={} 현재구독자수={}",
+					error == null ? "unknown" : error.getMessage(), emitters.size());
+		});
 
 		AlertResponse response = latest.get();
 		if (response != null) {
@@ -98,8 +119,10 @@ public class AlertService {
 		try {
 			emitter.send(SseEmitter.event().name("alert").data(response));
 		}
-		catch (Exception ignored) {
+		catch (Exception e) {
 			emitters.remove(emitter);
+			log.warn("[VLM SSE 전송 실패] deviceId={} timestamp={} exception={} message={}",
+					response.deviceId(), response.timestamp(), e.getClass().getName(), e.getMessage());
 		}
 	}
 
@@ -109,9 +132,15 @@ public class AlertService {
 
 	private void reflectToMonitoringStatus(AlertResponse response) {
 		String bedId = resolveBedId(response.deviceId());
+		log.info("[VLM 알림 대시보드 반영 시작] deviceId={} mappedBedId={}", response.deviceId(), bedId);
 		bedConfigStore.findByBedId(bedId)
 				.ifPresentOrElse(
-						bedConfig -> monitoringService.acceptAlertEvent(toRequest(response), bedConfig),
+						bedConfig -> {
+							monitoringService.acceptAlertEvent(toRequest(response), bedConfig);
+							log.info("[VLM 알림 대시보드 반영 완료] deviceId={} bedId={} patientNo={} patientName={}",
+									response.deviceId(), bedConfig.getBedId(), bedConfig.getPatientNo(),
+									bedConfig.getPatientName());
+						},
 						() -> log.warn("[VLM 알림 반영 생략] deviceId={} bedId={} 병상 설정 없음",
 								response.deviceId(), bedId)
 				);
@@ -126,5 +155,20 @@ public class AlertService {
 
 	private AlertRequest toRequest(AlertResponse response) {
 		return new AlertRequest(response.deviceId(), response.timestamp(), response.statusText(), response.snapshot());
+	}
+
+	private String preview(String value) {
+		if (value == null || value.isBlank()) {
+			return "(비어 있음)";
+		}
+		String normalized = value.replaceAll("\\s+", " ").trim();
+		return normalized.length() > 120 ? normalized.substring(0, 120) + "...(생략)" : normalized;
+	}
+
+	private String snapshotSummary(String snapshot) {
+		if (snapshot == null || snapshot.isBlank()) {
+			return "없음";
+		}
+		return "있음(length=" + snapshot.length() + ")";
 	}
 }

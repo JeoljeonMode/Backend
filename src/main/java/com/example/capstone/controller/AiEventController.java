@@ -28,9 +28,12 @@ public class AiEventController {
 	@PostMapping("/events")
 	@ResponseStatus(HttpStatus.CREATED)
 	public EventResponse receiveEvent(@RequestBody AiEventRequest request) {
-		log.info("[AI 이벤트] bedId={} posture={} position={} guardrail={} caregiver={}",
-				request.bedId(), request.posture(), request.patientPosition(),
+		log.info("[AI 이벤트 수신 시작] path=/api/ai/events bedId={} cameraId={} patientNo={} posture={} position={} guardrailUp={} caregiverPresent={}",
+				request.bedId(), request.cameraId(), request.patientNo(), request.posture(), request.patientPosition(),
 				request.guardrailUp(), request.caregiverPresent());
-		return monitoringService.acceptEvent(request);
+		EventResponse response = monitoringService.acceptEvent(request);
+		log.info("[AI 이벤트 수신 완료] bedId={} eventId={} riskLevel={} riskScore={} summary={}",
+				response.bedId(), response.id(), response.riskLevel(), response.riskScore(), response.summary());
+		return response;
 	}
 }

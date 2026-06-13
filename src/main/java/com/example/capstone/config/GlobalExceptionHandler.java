@@ -26,16 +26,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException e, HttpServletRequest request) {
-        log.warn("400 Bad Request: {} {} | user={} | message={}",
-                request.getMethod(), request.getRequestURI(), currentUser(), e.getMessage());
+        log.warn("[예외 처리][잘못된 요청] status=400 method={} path={} user={} exception={} message={}",
+                request.getMethod(), request.getRequestURI(), currentUser(), e.getClass().getName(), e.getMessage());
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<?> handleResponseStatus(ResponseStatusException e, HttpServletRequest request) {
-        log.warn("{} {}: {} {} | user={} | message={}",
-                e.getStatusCode().value(), e.getStatusCode(),
-                request.getMethod(), request.getRequestURI(), currentUser(), e.getReason());
+        log.warn("[예외 처리][응답 상태 예외] status={} method={} path={} user={} exception={} reason={}",
+                e.getStatusCode().value(), request.getMethod(), request.getRequestURI(), currentUser(),
+                e.getClass().getName(), e.getReason());
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", e.getReason() != null ? e.getReason() : e.getMessage());
@@ -46,8 +46,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleException(Exception e, HttpServletRequest request) {
-        log.error("500 Internal Server Error: {} {} | user={}",
-                request.getMethod(), request.getRequestURI(), currentUser(), e);
+        log.error("[예외 처리][서버 오류] status=500 method={} path={} user={} exception={} message={}",
+                request.getMethod(), request.getRequestURI(), currentUser(), e.getClass().getName(), e.getMessage(), e);
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", e.getMessage());

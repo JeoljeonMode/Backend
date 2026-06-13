@@ -33,32 +33,49 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        // SSE 같은 장시간 스트리밍 응답은 바디 캐싱 시 깨질 수 있으므로 요청 정보만 가볍게 로깅한다.
-        if (request.getRequestURI().startsWith("/sse/")) {
-            log.info(">>> {} {} | ip={} | user={}",
-                    request.getMethod(), request.getRequestURI(), clientIp(request), currentUser());
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         String reqId = UUID.randomUUID().toString().substring(0, 8);
         MDC.put("reqId", reqId);
+
+        if (isStreamingRequest(request)) {
+            log.info("[요청 시작][스트리밍] method={} path={} ip={} user={} userAgent={}",
+                    request.getMethod(), fullPath(request), clientIp(request), currentUser(), request.getHeader("User-Agent"));
+            long start = System.currentTimeMillis();
+            try {
+                filterChain.doFilter(request, response);
+                log.info("[요청 완료][스트리밍] method={} path={} status={} user={} durationMs={}",
+                        request.getMethod(), fullPath(request), response.getStatus(), currentUser(),
+                        System.currentTimeMillis() - start);
+            }
+            catch (Exception e) {
+                log.error("[예외 발생][스트리밍] method={} path={} user={} durationMs={} exception={} message={}",
+                        request.getMethod(), fullPath(request), currentUser(), System.currentTimeMillis() - start,
+                        e.getClass().getName(), e.getMessage(), e);
+                throw e;
+            }
+            finally {
+                MDC.remove("reqId");
+            }
+            return;
+        }
 
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request, MAX_PAYLOAD_LENGTH);
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 
         long start = System.currentTimeMillis();
-        String query = request.getQueryString();
 
-        log.info(">>> {} {}{} | ip={} | user-agent={}",
+        log.info("[요청 시작] method={} path={} ip={} userAgent={}",
                 request.getMethod(),
-                request.getRequestURI(),
-                query != null ? "?" + query : "",
+                fullPath(request),
                 clientIp(request),
                 request.getHeader("User-Agent"));
 
         try {
             filterChain.doFilter(wrappedRequest, wrappedResponse);
+        } catch (Exception e) {
+            log.error("[예외 발생] method={} path={} user={} durationMs={} exception={} message={}",
+                    request.getMethod(), fullPath(request), currentUser(), System.currentTimeMillis() - start,
+                    e.getClass().getName(), e.getMessage(), e);
+            throw e;
         } finally {
             long duration = System.currentTimeMillis() - start;
             String user = currentUser();
@@ -66,8 +83,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             String reqBody = readPayload(wrappedRequest.getContentAsByteArray(), request.getCharacterEncoding());
             String resBody = readPayload(wrappedResponse.getContentAsByteArray(), response.getCharacterEncoding());
 
-            String message = "<<< {} {} | status={} | user={} | durationMs={} | reqBody={} | resBody={}";
-            Object[] args = {request.getMethod(), request.getRequestURI(), status, user, duration, reqBody, resBody};
+            String result = toResultLabel(status);
+            String message = "[요청 완료][{}] method={} path={} status={} user={} durationMs={} requestBody={} responseBody={}";
+            Object[] args = {result, request.getMethod(), fullPath(request), status, user, duration, reqBody, resBody};
 
             if (status >= 500) {
                 log.error(message, args);
@@ -80,6 +98,26 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             wrappedResponse.copyBodyToResponse();
             MDC.remove("reqId");
         }
+    }
+
+    private boolean isStreamingRequest(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return uri.startsWith("/sse/") || "/api/video-stream".equals(uri);
+    }
+
+    private String fullPath(HttpServletRequest request) {
+        String query = request.getQueryString();
+        return request.getRequestURI() + (query != null ? "?" + query : "");
+    }
+
+    private String toResultLabel(int status) {
+        if (status >= 500) {
+            return "서버 오류";
+        }
+        if (status >= 400) {
+            return "클라이언트 오류";
+        }
+        return "정상";
     }
 
     private String currentUser() {
@@ -108,7 +146,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             String content = new String(buf, 0, len, charset);
             return buf.length > MAX_PAYLOAD_LENGTH ? content + "...(truncated)" : content;
         } catch (Exception e) {
-            return "(unreadable payload)";
+            return "(본문을 읽을 수 없음)";
         }
     }
 }

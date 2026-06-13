@@ -81,8 +81,9 @@ public class MonitoringService implements ApplicationRunner {
 		event.setPatientBox(toDetectionBox(request.patientBox()));
 
 		EventResponse response = EventResponse.from(eventStore.save(event));
-		log.info("[이벤트 수신] bedId={} level={} score={} factors={}",
-				response.bedId(), response.riskLevel(), response.riskScore(), response.riskFactors());
+		log.info("[모니터링 이벤트 저장 완료] eventId={} bedId={} cameraId={} patientNo={} riskLevel={} riskScore={} factors={}",
+				response.id(), response.bedId(), response.cameraId(), response.patientNo(),
+				response.riskLevel(), response.riskScore(), response.riskFactors());
 		broadcast(response);
 		return response;
 	}
@@ -120,8 +121,9 @@ public class MonitoringService implements ApplicationRunner {
 		event.setSummary(truncate(statusText, 255));
 
 		EventResponse response = EventResponse.from(eventStore.save(event));
-		log.info("[VLM 알림 이벤트 반영] deviceId={} bedId={} level={} score={}",
-				request.deviceId(), response.bedId(), response.riskLevel(), response.riskScore());
+		log.info("[VLM 알림 이벤트 저장 완료] deviceId={} eventId={} bedId={} cameraId={} patientNo={} riskLevel={} riskScore={} statusText={}",
+				request.deviceId(), response.id(), response.bedId(), response.cameraId(), response.patientNo(),
+				response.riskLevel(), response.riskScore(), truncate(statusText, 120));
 		broadcast(response);
 		return response;
 	}
@@ -368,14 +370,18 @@ public class MonitoringService implements ApplicationRunner {
 		for (SseEmitter emitter : emitters) {
 			send(emitter, response);
 		}
+		log.info("[상태 SSE 브로드캐스트 완료] eventId={} bedId={} subscriberCount={}",
+				response.id(), response.bedId(), emitters.size());
 	}
 
 	private void send(SseEmitter emitter, EventResponse response) {
 		try {
 			emitter.send(SseEmitter.event().name("status").data(response));
 		}
-		catch (Exception ignored) {
+		catch (Exception e) {
 			emitters.remove(emitter);
+			log.warn("[상태 SSE 전송 실패] eventId={} bedId={} exception={} message={} subscriberCount={}",
+					response.id(), response.bedId(), e.getClass().getName(), e.getMessage(), emitters.size());
 		}
 	}
 

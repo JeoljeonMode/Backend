@@ -37,11 +37,17 @@ public class AlertController {
 	@PostMapping("/api/alerts")
 	@ResponseStatus(HttpStatus.OK)
 	public void receiveAlert(@RequestBody AlertRequest request) {
+		log.info("[VLM 알림 API 호출] method=POST path=/api/alerts deviceId={} timestamp={} statusTextLength={} snapshot={}",
+				request.deviceId(), request.timestamp(),
+				request.statusText() == null ? 0 : request.statusText().length(),
+				request.snapshot() == null || request.snapshot().isBlank() ? "없음" : "있음(length=" + request.snapshot().length() + ")");
 		alertService.accept(request);
 	}
 
 	@GetMapping("/api/alerts/latest")
 	public AlertResponse latestAlert(@RequestParam(required = false) String deviceId) {
+		log.info("[VLM 최신 알림 API 호출] method=GET path=/api/alerts/latest deviceId={}",
+				deviceId == null || deviceId.isBlank() ? "전체 최신" : deviceId);
 		return alertService.latest(deviceId);
 	}
 
@@ -49,7 +55,9 @@ public class AlertController {
 	public ResponseEntity<StreamingResponseBody> videoStream(
 			@RequestParam(required = false) String roomId,
 			@RequestParam(required = false) String cameraId) {
-		log.info("[GET] /api/video-stream roomId={} cameraId={}", roomId, cameraId);
+		log.info("[영상 스트림 API 호출] method=GET path=/api/video-stream roomId={} cameraId={}",
+				roomId == null || roomId.isBlank() ? "미지정" : roomId,
+				cameraId == null || cameraId.isBlank() ? "미지정" : cameraId);
 		return ResponseEntity.ok()
 				.contentType(MJPEG_MEDIA_TYPE)
 				.body(videoStreamProxyService.proxy(roomId, cameraId));
@@ -57,7 +65,7 @@ public class AlertController {
 
 	@GetMapping(path = "/sse/alerts", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public SseEmitter alertStream() {
-		log.info("[GET] /sse/alerts (VLM 알림 SSE 구독 요청)");
+		log.info("[VLM 알림 SSE API 호출] method=GET path=/sse/alerts");
 		return alertService.subscribe();
 	}
 }

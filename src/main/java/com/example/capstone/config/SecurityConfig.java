@@ -38,7 +38,11 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/register").hasRole("ADMIN")
+                .requestMatchers("/api/users").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/rooms").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/beds").hasRole("ADMIN")
                 .requestMatchers("/api/**").authenticated()
                 .requestMatchers("/sse/**").authenticated()
                 .anyRequest().permitAll())

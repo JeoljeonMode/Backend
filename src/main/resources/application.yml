@@ -32,5 +32,18 @@ app:
 
 logging:
   level:
-    com.example.capstone: INFO
-    org.springframework.web.servlet.DispatcherServlet: WARN
+    root: INFO
+    com.example.capstone: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{reqId}] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{reqId}] %logger{36} - %msg%n"
+  file:
+    name: logs/capstone.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 14

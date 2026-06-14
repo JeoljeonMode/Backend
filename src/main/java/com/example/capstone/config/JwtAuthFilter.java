@@ -67,7 +67,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private boolean supportsTokenQueryParam(String path) {
-        return path.startsWith("/sse/") || "/api/video-stream".equals(path);
+        return path.startsWith("/sse/") || "/api/video-stream".equals(path) || "/api/ai/video-stream".equals(path);
     }
 
     @Override

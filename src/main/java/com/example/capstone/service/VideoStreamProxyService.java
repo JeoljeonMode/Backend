@@ -67,6 +67,15 @@ public class VideoStreamProxyService {
 		log.info("[영상 스트림 준비] roomId={} 요청cameraId={} resolvedCameraId={} upstreamUrl={}",
 				valueOrDefault(roomId, "미지정"), valueOrDefault(cameraId, "미지정"),
 				valueOrDefault(resolvedCameraId, "미지정"), valueOrDefault(resolvedUpstreamUrl, "미설정"));
+		return buildStreamingBody(resolvedUpstreamUrl, resolvedCameraId);
+	}
+
+	public StreamingResponseBody proxyUrl(String upstreamUrl, String label) {
+		log.info("[영상 스트림 준비] label={} upstreamUrl={}", label, valueOrDefault(upstreamUrl, "미설정"));
+		return buildStreamingBody(upstreamUrl, label);
+	}
+
+	private StreamingResponseBody buildStreamingBody(String resolvedUpstreamUrl, String resolvedCameraId) {
 		return outputStream -> {
 			while (!Thread.currentThread().isInterrupted()) {
 				if (resolvedUpstreamUrl == null || resolvedUpstreamUrl.isBlank()) {

@@ -102,7 +102,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     private boolean isStreamingRequest(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri.startsWith("/sse/") || "/api/video-stream".equals(uri);
+        return uri.startsWith("/sse/") || "/api/video-stream".equals(uri) || "/api/ai/video-stream".equals(uri);
     }
 
     private String fullPath(HttpServletRequest request) {

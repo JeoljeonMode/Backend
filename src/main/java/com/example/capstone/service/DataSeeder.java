@@ -61,12 +61,12 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedRooms() {
-        upsertRoom("101호", "101호 병실", "CAM-01", "남자", 3);
-        upsertRoom("102호", "102호 병실", "CAM-02", "남자", 3);
-        upsertRoom("103호", "103호 병실", "CAM-03", "남자", 4);
-        upsertRoom("201호", "201호 병실", "CAM-04", "여자", 3);
-        upsertRoom("202호", "202호 병실", "CAM-05", "여자", 2);
-        upsertRoom("203호", "203호 병실", "CAM-06", "여자", 2);
+        upsertRoom("101호", "101호 병실", "CAM-01", "남자", 3, false);
+        upsertRoom("102호", "102호 병실", "CAM-02", "남자", 3, false);
+        upsertRoom("103호", "103호 병실", "CAM-03", "남자", 4, false);
+        upsertRoom("201호", "201호 병실", "CAM-04", "여자", 3, false);
+        upsertRoom("202호", "202호 병실", "CAM-05", "여자", 2, false);
+        upsertRoom("203호", "203호 병실", "CAM-06", "여자", 2, true);
         log.info("[시드] 병실 6개 upsert 완료");
     }
 
@@ -118,13 +118,15 @@ public class DataSeeder implements ApplicationRunner {
         log.info("[시드] 환자 17명 upsert 완료");
     }
 
-    private void upsertRoom(String roomId, String label, String cameraId, String gender, int capacity) {
+    private void upsertRoom(String roomId, String label, String cameraId, String gender, int capacity,
+            boolean cameraEnabled) {
         Room room = roomStore.findByRoomId(roomId).orElseGet(Room::new);
         room.setRoomId(roomId);
         room.setLabel(label);
         room.setCameraId(cameraId);
         room.setGender(gender);
         room.setCapacity(capacity);
+        room.setCameraEnabled(cameraEnabled);
         roomStore.save(room);
     }
 

@@ -9,11 +9,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.imageio.ImageIO;
 
@@ -26,6 +28,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import com.example.capstone.domain.Room;
 import com.example.capstone.repository.RoomStore;
 
 @Service
@@ -39,6 +42,7 @@ public class VideoStreamProxyService {
 	private final long retryDelayMillis;
 	private final Map<String, String> cameraVideoFeedUrls;
 	private final RoomStore roomStore;
+	private final Map<String, byte[]> placeholderImageCache = new ConcurrentHashMap<>();
 
 	public VideoStreamProxyService(
 			@Value("${app.jetson.video-feed-url}") String upstreamUrl,
@@ -63,7 +67,9 @@ public class VideoStreamProxyService {
 
 	public StreamingResponseBody proxy(String roomId, String cameraId) {
 		String resolvedCameraId = resolveCameraId(roomId, cameraId);
-		String resolvedUpstreamUrl = resolveUpstreamUrl(resolvedCameraId);
+		String resolvedUpstreamUrl = isCameraEnabled(roomId, resolvedCameraId)
+				? resolveUpstreamUrl(resolvedCameraId)
+				: null;
 		log.info("[영상 스트림 준비] roomId={} 요청cameraId={} resolvedCameraId={} upstreamUrl={}",
 				valueOrDefault(roomId, "미지정"), valueOrDefault(cameraId, "미지정"),
 				valueOrDefault(resolvedCameraId, "미지정"), valueOrDefault(resolvedUpstreamUrl, "미설정"));
@@ -148,6 +154,16 @@ public class VideoStreamProxyService {
 		return null;
 	}
 
+	private boolean isCameraEnabled(String roomId, String cameraId) {
+		if (roomId != null && !roomId.isBlank()) {
+			return roomStore.findByRoomId(roomId).map(Room::isCameraEnabled).orElse(false);
+		}
+		if (cameraId != null && !cameraId.isBlank()) {
+			return roomStore.findByCameraId(cameraId).map(Room::isCameraEnabled).orElse(false);
+		}
+		return false;
+	}
+
 	private String resolveUpstreamUrl(String cameraId) {
 		if (cameraId != null && cameraVideoFeedUrls.containsKey(cameraId)) {
 			return cameraVideoFeedUrls.get(cameraId);
@@ -184,7 +200,8 @@ public class VideoStreamProxyService {
 
 	private boolean writePlaceholderFrame(OutputStream outputStream, String title, String cameraId) {
 		try {
-			byte[] image = createPlaceholderImage(title, cameraId);
+			byte[] image = placeholderImageCache.computeIfAbsent(title + "|" + cameraId,
+					key -> createPlaceholderImage(title, cameraId));
 			outputStream.write(("--frame\r\n"
 					+ "Content-Type: image/jpeg\r\n"
 					+ "Content-Length: " + image.length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
@@ -205,7 +222,7 @@ public class VideoStreamProxyService {
 		return value == null || value.isBlank() ? fallback : value;
 	}
 
-	private byte[] createPlaceholderImage(String title, String cameraId) throws IOException {
+	private byte[] createPlaceholderImage(String title, String cameraId) {
 		BufferedImage image = new BufferedImage(960, 540, BufferedImage.TYPE_INT_RGB);
 		Graphics2D graphics = image.createGraphics();
 		try {
@@ -225,8 +242,13 @@ public class VideoStreamProxyService {
 			graphics.dispose();
 		}
 
-		ByteArrayOutputStream output = new ByteArrayOutputStream();
-		ImageIO.write(image, "jpg", output);
-		return output.toByteArray();
+		try {
+			ByteArrayOutputStream output = new ByteArrayOutputStream();
+			ImageIO.write(image, "jpg", output);
+			return output.toByteArray();
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 }

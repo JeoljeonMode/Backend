@@ -70,6 +70,6 @@ public class RoomService {
                 .sorted(Comparator.naturalOrder())
                 .toList();
         return new RoomResponse(room.getRoomId(), room.getLabel(), room.getCameraId(),
-                room.getGender(), room.getCapacity(), bedIds);
+                room.getGender(), room.getCapacity(), room.isCameraEnabled(), bedIds);
     }
 }

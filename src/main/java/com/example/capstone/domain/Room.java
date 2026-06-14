@@ -20,4 +20,5 @@ public class Room {
     private String cameraId;
     private String gender;
     private int capacity;
+    private boolean cameraEnabled;
 }

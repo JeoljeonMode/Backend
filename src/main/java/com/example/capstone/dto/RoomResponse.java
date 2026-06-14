@@ -8,6 +8,7 @@ public record RoomResponse(
         String cameraId,
         String gender,
         int capacity,
+        boolean cameraEnabled,
         List<String> bedIds
 ) {
 }

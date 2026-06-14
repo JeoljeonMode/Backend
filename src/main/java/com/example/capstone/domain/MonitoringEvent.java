@@ -21,6 +21,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
+
 @Entity
 @Table(name = "monitoring_events")
 public class MonitoringEvent {
@@ -42,6 +45,7 @@ public class MonitoringEvent {
 	private RiskLevel riskLevel;
 
 	@ElementCollection(fetch = FetchType.EAGER)
+	@Fetch(FetchMode.SUBSELECT)
 	@CollectionTable(name = "monitoring_event_risk_factors", joinColumns = @JoinColumn(name = "event_id"))
 	@OrderColumn(name = "factor_order")
 	@Column(name = "factor")

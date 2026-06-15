@@ -38,7 +38,6 @@ app:
     default-bed-id: ${JETSON_DEFAULT_BED_ID:B-206}
     device-bed-map:
       jetson_orin_nano_bed_01: ${JETSON_BED_01_ID:B-206}
-      jetson_orin_nano_bed_02: ${JETSON_BED_02_ID:B-207}
       jetson_orin_nano_room_203: ${JETSON_ROOM_203_DEFAULT_BED_ID:B-206}
     video-feed-urls:
       CAM-06: ${JETSON_VIDEO_FEED_URL:http://100.85.14.33:5000/video_feed}

@@ -299,8 +299,7 @@ public class MonitoringService implements ApplicationRunner {
 			Map.entry("B-203", new BedInfo("이수현", "24-2013")),
 			Map.entry("B-204", new BedInfo("최민서", "24-2021")),
 			Map.entry("B-205", new BedInfo("정지현", "24-2022")),
-			Map.entry("B-206", new BedInfo("203호 환자1", "24-2031")),
-			Map.entry("B-207", new BedInfo("203호 환자2", "24-2032")));
+			Map.entry("B-206", new BedInfo("203호 환자1", "24-2031")));
 
 	// docs/backend-seed-data-spec.md §5 병상 현재 상태 + 203호 실제 연동 대기 상태
 	private static final List<SeedEvent> CURRENT_STATUS_SEED_EVENTS = List.of(
@@ -319,8 +318,7 @@ public class MonitoringService implements ApplicationRunner {
 			new SeedEvent("e-201c", "B-203", 2_160_000L, "center", "lying", true, true),
 			new SeedEvent("e-202a", "B-204", 2_340_000L, "center", "lying", true, true),
 			new SeedEvent("e-202b", "B-205", 2_520_000L, "out_of_bed", "exit_attempt", false, false),
-			new SeedEvent("e-203a", "B-206", 2_700_000L, "center", "lying", true, true),
-			new SeedEvent("e-203b", "B-207", 2_880_000L, "center", "lying", true, true));
+			new SeedEvent("e-203a", "B-206", 2_700_000L, "center", "lying", true, true));
 
 	// docs/backend-seed-data-spec.md §6 이벤트 로그 (19건)
 	private static final List<SeedEvent> EVENT_LOG_SEED_EVENTS = List.of(
@@ -401,7 +399,7 @@ public class MonitoringService implements ApplicationRunner {
 			case "B-107", "B-108", "B-109", "B-110" -> "103호";
 			case "B-201", "B-202", "B-203" -> "201호";
 			case "B-204", "B-205" -> "202호";
-			case "B-206", "B-207" -> "203호";
+			case "B-206" -> "203호";
 			default -> bedId;
 		};
 	}
@@ -414,7 +412,7 @@ public class MonitoringService implements ApplicationRunner {
 			case "B-107", "B-108", "B-109", "B-110" -> "CAM-03";
 			case "B-201", "B-202", "B-203" -> "CAM-04";
 			case "B-204", "B-205" -> "CAM-05";
-			case "B-206", "B-207" -> "CAM-06";
+			case "B-206" -> "CAM-06";
 			default -> "CAM-01";
 		};
 	}

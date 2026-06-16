@@ -152,14 +152,9 @@ public class MonitoringService implements ApplicationRunner {
 		Map<String, BedConfig> bedConfigsByBedId = bedConfigStore.findAll().stream()
 				.collect(Collectors.toMap(BedConfig::getBedId, config -> config, (first, second) -> first));
 
-		// findRecent() is ordered by occurredAt DESC, id DESC, so the first event seen per bed is the latest one.
-		Map<String, EventResponse> latestByBed = eventStore.findRecent(500).stream()
+		Map<String, EventResponse> latestByBed = eventStore.findLatestPerBed().stream()
 				.map(EventResponse::from)
-				.collect(Collectors.toMap(
-						EventResponse::bedId,
-						event -> event,
-						(first, second) -> first
-				));
+				.collect(Collectors.toMap(EventResponse::bedId, event -> event));
 
 		return latestByBed.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey())

@@ -41,4 +41,13 @@ public interface EventStore extends JpaRepository<MonitoringEvent, String> {
 	default List<MonitoringEvent> findRecent(String bedId, RiskLevel riskLevel, Boolean acknowledged, int limit) {
 		return findRecent(bedId, riskLevel, acknowledged, PageRequest.of(0, limit));
 	}
+
+	@Query("""
+			SELECT e FROM MonitoringEvent e
+			WHERE e.occurredAt = (
+			    SELECT MAX(e2.occurredAt) FROM MonitoringEvent e2 WHERE e2.bedId = e.bedId
+			)
+			ORDER BY e.bedId
+			""")
+	List<MonitoringEvent> findLatestPerBed();
 }

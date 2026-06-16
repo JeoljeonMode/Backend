@@ -1,7 +1,11 @@
 package com.example.capstone.config;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,6 +24,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
+
+    private static final long CACHE_TTL_SECONDS = 60;
+
+    private record CachedUser(Optional<User> user, Instant expiresAt) {}
+
+    private final Map<String, CachedUser> userCache = new ConcurrentHashMap<>();
 
     private final JwtService jwtService;
     private final UserStore userStore;
@@ -44,7 +54,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
         if (token != null && jwtService.isTokenValid(token)) {
             String username = jwtService.extractUsername(token);
-            userStore.findByUsername(username)
+            lookupUser(username)
                     .filter(User::isActive)
                     .ifPresent(user -> {
                         String role = normalizeRole(user.getRole());
@@ -57,6 +67,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     });
         }
         filterChain.doFilter(request, response);
+    }
+
+    private Optional<User> lookupUser(String username) {
+        Instant now = Instant.now();
+        CachedUser cached = userCache.get(username);
+        if (cached != null && now.isBefore(cached.expiresAt())) {
+            return cached.user();
+        }
+        Optional<User> user = userStore.findByUsername(username);
+        userCache.put(username, new CachedUser(user, now.plusSeconds(CACHE_TTL_SECONDS)));
+        return user;
     }
 
     private String normalizeRole(String role) {

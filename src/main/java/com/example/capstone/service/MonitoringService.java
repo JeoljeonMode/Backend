@@ -154,7 +154,7 @@ public class MonitoringService implements ApplicationRunner {
 
 		Map<String, EventResponse> latestByBed = eventStore.findLatestPerBed().stream()
 				.map(EventResponse::from)
-				.collect(Collectors.toMap(EventResponse::bedId, event -> event));
+				.collect(Collectors.toMap(EventResponse::bedId, event -> event, (a, b) -> a));
 
 		return latestByBed.entrySet().stream()
 				.sorted(Map.Entry.comparingByKey())
